@@ -55,7 +55,7 @@ GitHub に push すると Cloudflare が自動でビルド・デプロイしま�
 | Project name | `llm-flops-calculator`（`wrangler.jsonc` の `name` と一致させる） |
 | Build command | `npm run build` |
 | Deploy command | `npx wrangler deploy` |
-| Preview command（Non-production branch deploy command） | `npx wrangler versions upload` |
+| Preview command | `npx wrangler preview`（初期値のまま） |
 | Path（Root directory） | `/` |
 
 以降、`main` への push で本番デプロイ、それ以外のブランチへの push でプレビュー URL が発行されます。Node バージョンは `.node-version`（22）が使われます。
