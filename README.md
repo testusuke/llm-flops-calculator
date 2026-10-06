@@ -42,18 +42,20 @@ npm run dev     # 開発サーバ
 npm run build   # dist/ に出力
 ```
 
-## デプロイ（Cloudflare Pages）
+## デプロイ（Cloudflare Workers Builds）
 
-GitHub に push すると Cloudflare Pages が自動でビルド・デプロイします。
+GitHub に push すると Cloudflare が自動でビルド・デプロイします（静的サイトを Workers Static Assets として配信。設定は `wrangler.jsonc`）。
 
 1. GitHub にリポジトリを作成して push
-2. Cloudflare ダッシュボード → **Workers & Pages** → **Create application** → **Pages** タブ → **Connect to Git**（画面上部が Workers の作成フローになっている場合は Pages 側の導線を選ぶ）
-3. リポジトリを選択し、以下を設定
-   - Production branch: `main`
-   - Framework preset: `React (Vite)`（または None）
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-   - Node バージョンは `.node-version`（22）が自動で使われます
-4. **Save and Deploy**
+2. Cloudflare ダッシュボード → **Workers & Pages** → **Create application** → **Import a repository** → GitHub のリポジトリを選択
+3. 以下を設定して **Deploy**
 
-以降、`main` への push で本番デプロイ、それ以外のブランチ / PR への push でプレビューデプロイが作られます。
+| 項目 | 値 |
+| --- | --- |
+| Project name | `llm-flops-calculator`（`wrangler.jsonc` の `name` と一致させる） |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Preview command（Non-production branch deploy command） | `npx wrangler versions upload` |
+| Path（Root directory） | `/` |
+
+以降、`main` への push で本番デプロイ、それ以外のブランチへの push でプレビュー URL が発行されます。Node バージョンは `.node-version`（22）が使われます。
