@@ -47,7 +47,7 @@ npm run build   # dist/ に出力
 GitHub に push すると Cloudflare Pages が自動でビルド・デプロイします。
 
 1. GitHub にリポジトリを作成して push
-2. Cloudflare ダッシュボード → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. Cloudflare ダッシュボード → **Workers & Pages** → **Create application** → **Pages** タブ → **Connect to Git**（画面上部が Workers の作成フローになっている場合は Pages 側の導線を選ぶ）
 3. リポジトリを選択し、以下を設定
    - Production branch: `main`
    - Framework preset: `React (Vite)`（または None）
