@@ -1,43 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import {
+  NUMERIC_KEYS,
   PRESETS,
+  completeConfig,
   computeFlops,
   formatCount,
   formatSI,
   formatSci,
   parseConfigsJson,
   parseQuantity,
+  type ConfigDraft,
   type ModelConfig,
+  type NumericKey,
 } from './flops.ts'
 
 const STORAGE_KEY = 'llm-flops-calculator:configs'
 
-type FieldKey = 'L' | 'd' | 'S' | 'V' | 'D' | 'B'
-type Form = { name: string } & Record<FieldKey, string>
+type Form = { name: string } & Record<NumericKey, string>
 
-const FIELDS: { key: FieldKey; label: string; hint: string }[] = [
+const FIELDS: { key: NumericKey; label: string; hint: string }[] = [
   { key: 'L', label: 'L — レイヤー数', hint: 'Transformer layers' },
   { key: 'd', label: 'd — 隠れ次元', hint: 'model dimension / hidden size' },
+  { key: 'd_ff', label: 'd_ff — FFN 中間次元', hint: 'FFN intermediate size（通常 4d。gated FFN なら 1.5 倍で換算）' },
   { key: 'S', label: 'S — シーケンス長', hint: 'sequence length' },
   { key: 'V', label: 'V — 語彙サイズ', hint: 'vocabulary size' },
   { key: 'D', label: 'D — 学習トークン数', hint: 'total training tokens（例: 2T, 300B, 1.4e12）' },
   { key: 'B', label: 'B — バッチサイズ', hint: '1 batch あたりのシーケンス数' },
 ]
 
-function toForm(c: ModelConfig): Form {
-  return {
-    name: c.name,
-    L: String(c.L),
-    d: String(c.d),
-    S: String(c.S),
-    V: String(c.V),
-    D: formatCount(c.D, 4).replace(/\.?0+(?=[KMBT]$)/, ''),
-    B: String(c.B),
+/** 欠けている値は空欄にする */
+function toForm(c: ConfigDraft): Form {
+  const form = { name: c.name } as Form
+  for (const k of NUMERIC_KEYS) {
+    const v = c[k]
+    form[k] = v === undefined ? '' : k === 'D' ? formatCount(v, 4).replace(/\.?0+(?=[KMBT]$)/, '') : String(v)
   }
+  return form
 }
 
-function loadSaved(): ModelConfig[] {
+function loadSaved(): ConfigDraft[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? parseConfigsJson(raw) : []
@@ -71,7 +73,7 @@ function Flops({ value }: { value: number }) {
 
 export default function App() {
   const [form, setForm] = useState<Form>(() => toForm(PRESETS[0]))
-  const [saved, setSaved] = useState<ModelConfig[]>(loadSaved)
+  const [saved, setSaved] = useState<ConfigDraft[]>(loadSaved)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -80,8 +82,8 @@ export default function App() {
   }, [saved])
 
   const parsed = useMemo(() => {
-    const values = {} as Record<FieldKey, number>
-    const errors: Partial<Record<FieldKey, boolean>> = {}
+    const values = {} as Record<NumericKey, number>
+    const errors: Partial<Record<NumericKey, boolean>> = {}
     for (const { key } of FIELDS) {
       const v = parseQuantity(form[key])
       values[key] = v
@@ -204,17 +206,20 @@ export default function App() {
           ) : (
             <>
               <ul className="saved">
-                {saved.map((c) => (
-                  <li key={c.name}>
-                    <button className="link" onClick={() => setForm(toForm(c))} title="読み込む">
-                      {c.name}
-                    </button>
-                    <span className="muted">≈ {formatCount(computeFlops(c).N)} params</span>
-                    <button className="icon" onClick={() => remove(c.name)} aria-label={`${c.name} を削除`}>
-                      ×
-                    </button>
-                  </li>
-                ))}
+                {saved.map((c) => {
+                  const full = completeConfig(c)
+                  return (
+                    <li key={c.name}>
+                      <button className="link" onClick={() => setForm(toForm(c))} title="読み込む">
+                        {c.name}
+                      </button>
+                      <span className="muted">{full ? `≈ ${formatCount(computeFlops(full).N)} params` : '未入力あり'}</span>
+                      <button className="icon" onClick={() => remove(c.name)} aria-label={`${c.name} を削除`}>
+                        ×
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
               <button onClick={() => download('llm-flops-configs.json', saved)}>すべて JSON export</button>
             </>
@@ -230,7 +235,7 @@ export default function App() {
                 <div className="card">
                   <h3>1 トークンあたり</h3>
                   <Flops value={r.M} />
-                  <code>M = 72Ld² + 12LdS + 6dV</code>
+                  <code>M = 24Ld² + 12Ld·d_ff + 12LdS + 6dV</code>
                 </div>
                 <div className="card">
                   <h3>1 シーケンスあたり</h3>
@@ -254,9 +259,10 @@ export default function App() {
               <div className="block">
                 <h2>M の内訳（1 トークンあたり）</h2>
                 <div className="stack" role="img" aria-label="M の内訳">
-                  <div className="seg s1" style={{ width: pct(r.termParam) }} />
-                  <div className="seg s2" style={{ width: pct(r.termAttn) }} />
-                  <div className="seg s3" style={{ width: pct(r.termVocab) }} />
+                  <div className="seg s1" style={{ width: pct(r.termAttnProj) }} />
+                  <div className="seg s2" style={{ width: pct(r.termFfn) }} />
+                  <div className="seg s3" style={{ width: pct(r.termAttn) }} />
+                  <div className="seg s4" style={{ width: pct(r.termVocab) }} />
                 </div>
                 <table>
                   <thead>
@@ -271,15 +277,24 @@ export default function App() {
                     <tr>
                       <td>
                         <i className="dot s1" />
-                        <code>72Ld²</code>
+                        <code>24Ld²</code>
                       </td>
-                      <td>パラメータ依存の計算（Attention projections + FFN）</td>
-                      <td className="num">{formatSI(r.termParam)}FLOPs</td>
-                      <td className="num">{pct(r.termParam)}</td>
+                      <td>Attention projections（Q, K, V, O: 6 × 4d² / layer）</td>
+                      <td className="num">{formatSI(r.termAttnProj)}FLOPs</td>
+                      <td className="num">{pct(r.termAttnProj)}</td>
                     </tr>
                     <tr>
                       <td>
                         <i className="dot s2" />
+                        <code>12Ld·d_ff</code>
+                      </td>
+                      <td>FFN（6 × 2d·d_ff / layer）</td>
+                      <td className="num">{formatSI(r.termFfn)}FLOPs</td>
+                      <td className="num">{pct(r.termFfn)}</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <i className="dot s3" />
                         <code>12LdS</code>
                       </td>
                       <td>シーケンス長依存の Attention 計算（QKᵀ, Attention × V）</td>
@@ -288,10 +303,10 @@ export default function App() {
                     </tr>
                     <tr>
                       <td>
-                        <i className="dot s3" />
+                        <i className="dot s4" />
                         <code>6dV</code>
                       </td>
-                      <td>語彙 / embedding・出力層の計算</td>
+                      <td>出力層の vocabulary projection</td>
                       <td className="num">{formatSI(r.termVocab)}FLOPs</td>
                       <td className="num">{pct(r.termVocab)}</td>
                     </tr>
@@ -304,9 +319,19 @@ export default function App() {
                 <table>
                   <tbody>
                     <tr>
+                      <th>Transformer パラメータ数</th>
+                      <td>
+                        <code>N_transformer ≈ L(4d² + 2d·d_ff)</code>
+                      </td>
+                      <td className="num">
+                        {formatCount(r.N_transformer)}
+                        <span className="sci">{formatSci(r.N_transformer)}</span>
+                      </td>
+                    </tr>
+                    <tr>
                       <th>パラメータ数 N</th>
                       <td>
-                        <code>N ≈ 12Ld² + dV</code>
+                        <code>N ≈ N_transformer + dV</code>
                       </td>
                       <td className="num">
                         {formatCount(r.N)}
@@ -352,26 +377,21 @@ export default function App() {
 
               <details className="block">
                 <summary>使用している数式</summary>
-                <pre>{`# LLM training FLOPs
-M = 72Ld^2 + 12LdS + 6dV
+                <pre>{`# Standard Transformer (non-gated FFN)
+Attention projection parameters / layer = Q + K + V + O = 4d²
+FFN parameters / layer = d × d_ff + d_ff × d = 2d·d_ff
+N_transformer ≈ L(4d² + 2d·d_ff)
+
+# Training FLOPs per token (forward + backward ≈ 6 FLOPs / parameter / token)
+M_param ≈ 6L(4d² + 2d·d_ff) = 24Ld² + 12Ld·d_ff
+M_attn  ≈ 12LdS
+M_vocab ≈ 6dV
+
+M ≈ 24Ld² + 12Ld·d_ff + 12LdS + 6dV
 C = MD
 
-# Equivalent form
-N ≈ 12Ld^2 + dV
-M ≈ 6N + 12LdS
-C ≈ (6N + 12LdS)D
-
-# Chinchilla approximation
+# Chinchilla approximation（N = N_transformer + dV）
 C ≈ 6ND
-
-L : Transformer のレイヤー数
-d : model dimension / hidden size
-S : sequence length
-V : vocabulary size
-N : モデルのパラメータ数
-D : 学習トークン総数
-M : 1トークンあたりの学習 FLOPs（forward + backward）
-C : 学習全体の FLOPs
 
 1シーケンスあたり = M × S
 1バッチあたり     = M × S × B`}</pre>

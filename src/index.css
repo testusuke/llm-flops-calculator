@@ -11,6 +11,7 @@
   --s1: #4f46e5;
   --s2: #0ea5a4;
   --s3: #f59e0b;
+  --s4: #e11d48;
   --sans: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', 'Segoe UI', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
@@ -35,6 +36,7 @@
     --s1: #8b85ff;
     --s2: #2dd4bf;
     --s3: #fbbf24;
+    --s4: #fb7185;
   }
 }
 

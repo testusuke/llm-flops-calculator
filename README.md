@@ -2,13 +2,18 @@
 
 Transformer LLM の学習 FLOPs を **1トークン / 1シーケンス / 1バッチ / 学習全体** の単位で見積もる Web アプリです。
 
-## 数式
+## 数式（Standard Transformer, non-gated FFN）
 
 ```
-M = 72Ld^2 + 12LdS + 6dV   # 1トークンあたりの学習 FLOPs
-C = MD                     # 学習全体の FLOPs
-N ≈ 12Ld^2 + dV            # パラメータ数
-C ≈ 6ND                    # Chinchilla 近似
+N_transformer ≈ L(4d^2 + 2d d_ff)        # Attention (Q,K,V,O) + FFN
+N ≈ N_transformer + dV                   # + embedding
+
+M_param ≈ 6L(4d^2 + 2d d_ff) = 24Ld^2 + 12L d d_ff
+M_attn  ≈ 12LdS
+M_vocab ≈ 6dV
+M ≈ 24Ld^2 + 12L d d_ff + 12LdS + 6dV    # 1トークンあたりの学習 FLOPs
+C = MD                                   # 学習全体の FLOPs
+C ≈ 6ND                                  # Chinchilla 近似
 
 1シーケンスあたり = M × S
 1バッチあたり     = M × S × B
@@ -18,6 +23,7 @@ C ≈ 6ND                    # Chinchilla 近似
 | --- | --- |
 | L | Transformer のレイヤー数 |
 | d | model dimension / hidden size |
+| d_ff | FFN intermediate size（通常 4d。gated FFN なら 1.5 倍で換算） |
 | S | sequence length |
 | V | vocabulary size |
 | D | 学習トークン総数 |
@@ -25,13 +31,14 @@ C ≈ 6ND                    # Chinchilla 近似
 
 ## 機能
 
-- プリセット（GPT-3 175B / Chinchilla 70B / Llama 2 7B / GPT-2 small）
+- プリセット（GPT-3 175B / Chinchilla 70B / GPT-3 6.7B / GPT-2 small）
 - `2T`, `300B`, `1.4e12`, `1,024` のような入力に対応
 - config をブラウザ（localStorage）に保存
 - JSON で import / export（単体・配列・`{ "configs": [...] }` 形式に対応）
+- 古い形式の config や項目が欠けた JSON も読み込み可能（足りない項目は空欄になる）
 
 ```json
-{ "name": "My Model", "L": 32, "d": 4096, "S": 4096, "V": 32000, "D": 2000000000000, "B": 1024 }
+{ "name": "My Model", "L": 32, "d": 4096, "d_ff": 16384, "S": 4096, "V": 32000, "D": 2000000000000, "B": 1024 }
 ```
 
 ## 開発
